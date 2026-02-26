@@ -19,3 +19,6 @@ class AvatarResponse(BaseModel):
     domain: str
     description: str | None
     type: str
+class ChatSchema(BaseModel):
+    avatar_id:int
+    message:str

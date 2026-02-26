@@ -2,6 +2,7 @@ from db.connection import getConnection
 from fastapi import HTTPException
 from psycopg2.extensions import cursor
 
+
 def add_avatar(data):
     con=getConnection()
     try:
@@ -52,4 +53,6 @@ def add_avatar(data):
         con.rollback()
         return {"error": str(e)}
 
+
+# def chatAI(data):
 
