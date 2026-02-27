@@ -5,6 +5,7 @@ class AvatarCreate(BaseModel):
     emotion:str
     tone:str
     mode:str
+    communication_style_id: int
     intensity: int
     domain: str
     type:str
@@ -16,6 +17,7 @@ class AvatarResponse(BaseModel):
     tone: str
     intensity: int
     mode: str
+    communication_style_id: int
     domain: str
     description: str | None
     type: str

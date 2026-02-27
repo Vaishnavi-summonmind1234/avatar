@@ -27,10 +27,16 @@ def add_avatar(data):
         if not domain:
             return HTTPException(status_code=404,detail="domain not found")
         domain_id=domain[0]
+        cur.execute("""SELECT id FROM  communication_styles WHERE id=%s""",(data.communication_style_id,))
+        style=cur.fetchone()
+        if not style:
+            raise HTTPException(status_code=404,detail="communication style not found")
+        style_id=style[0]
+
         cur.execute("""
             INSERT INTO avatar_master
-            (name, emotion_id, tone_id, intensity_id, mode_id, description, type, domain)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            (name, emotion_id, tone_id, intensity_id, mode_id,communication_style_id, description, type, domain)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s,%s)
             RETURNING id
         """, (
             data.name,
@@ -38,6 +44,7 @@ def add_avatar(data):
             tone_id,
             data.intensity,
             mode_id,
+            style_id,
             data.description,
             data.type,
             domain_id
