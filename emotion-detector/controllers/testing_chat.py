@@ -13,38 +13,23 @@ def test_chat(data):
     try:
         cur = con.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        # 1️⃣ Get user_id
-        cur.execute(
-            "SELECT user_id FROM users WHERE user_name=%s",
-            (data.user_name,)
-        )
-        user = cur.fetchone()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        user_id = user["user_id"]
+        # 1️⃣ Get conversation details
+        cur.execute("""
+            SELECT user_id, avatar_id
+            FROM conversation_master
+            WHERE id=%s
+        """, (data.conversation_id,))
 
-        # 2️⃣ Get avatar_id
-        cur.execute(
-            "SELECT id FROM avatar_master WHERE name=%s",
-            (data.avatar,)
-        )
-        avatar_row = cur.fetchone()
-        if not avatar_row:
-            raise HTTPException(status_code=404, detail="Avatar not found")
-        avatar_id = avatar_row["id"]
+        conversation = cur.fetchone()
 
-        # 3️⃣ Create or Use Conversation
-        if data.conversation_id is None:
-            cur.execute("""
-                INSERT INTO conversation_master (user_id, avatar_id)
-                VALUES (%s, %s)
-                RETURNING id
-            """, (user_id, avatar_id))
-            conversation_id = cur.fetchone()["id"]
-        else:
-            conversation_id = data.conversation_id
+        if not conversation:
+            raise HTTPException(status_code=404, detail="Invalid conversation_id")
 
-        # 4️⃣ Insert USER message with conversation_id
+        user_id = conversation["user_id"]
+        avatar_id = conversation["avatar_id"]
+        conversation_id = data.conversation_id
+
+        # 2️⃣ Insert USER message
         cur.execute("""
             INSERT INTO message (user_id, avatar_id, conversation_id, message, role)
             VALUES (%s, %s, %s, %s, %s)
@@ -52,12 +37,13 @@ def test_chat(data):
 
         con.commit()
 
-        # 5️⃣ Fetch avatar personality (same as before)
+        # 3️⃣ Fetch avatar personality
         cur.execute("""
             SELECT name, emotion_id, tone_id, description, communication_style_id
             FROM avatar_master
             WHERE id=%s
         """, (avatar_id,))
+
         avatar = cur.fetchone()
 
         cur.execute("SELECT emotion FROM emotions WHERE id=%s", (avatar["emotion_id"],))
@@ -71,31 +57,29 @@ def test_chat(data):
             FROM communication_styles
             WHERE id=%s
         """, (avatar["communication_style_id"],))
+
         rules = cur.fetchall()
 
         instructions = [
             f"{rule['step']}: {rule['option']}."
             for rule in rules
         ]
-        communication_structure = "\n".join(instructions)
 
-        # 6️⃣ System Prompt
         system_prompt = f"""
 You are {avatar['name']}.
 
-PERSONALITY:
 Emotion: {emotion}
 Tone: {tone}
 Description: {avatar['description']}
 
-COMMUNICATION STRUCTURE:
-{communication_structure}
+Communication Rules:
+{chr(10).join(instructions)}
 
 Follow structure strictly.
 Stay consistent with personality.
 """
 
-        # 7️⃣ Fetch history ONLY for this conversation
+        # 4️⃣ Fetch conversation history
         cur.execute("""
             SELECT role, message
             FROM message
@@ -105,7 +89,6 @@ Stay consistent with personality.
 
         history_rows = cur.fetchall()
 
-        # 8️⃣ Convert to OpenAI format
         openai_messages = [{"role": "system", "content": system_prompt}]
 
         for row in history_rows:
@@ -114,7 +97,7 @@ Stay consistent with personality.
                 "content": row["message"]
             })
 
-        # 9️⃣ Call OpenAI
+        # 5️⃣ Call OpenAI
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=openai_messages,
@@ -123,7 +106,7 @@ Stay consistent with personality.
 
         ai_reply = response.choices[0].message.content
 
-        # 🔟 Store AI reply with conversation_id
+        # 6️⃣ Store assistant reply
         cur.execute("""
             INSERT INTO message (user_id, avatar_id, conversation_id, message, role)
             VALUES (%s, %s, %s, %s, %s)

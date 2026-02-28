@@ -22,5 +22,5 @@ class AvatarResponse(BaseModel):
     description: str | None
     type: str
 class ChatSchema(BaseModel):
-    avatar_id:int
-    message:str
+    conversation_id: int
+    message: str
